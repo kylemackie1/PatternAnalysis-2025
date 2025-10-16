@@ -40,3 +40,43 @@ class DropPath(nn.Module):
         random_tensor.floor_()
         output = x.div(keep_prob) * random_tensor
         return output
+    
+class ConvNeXtBlock(nn.Module):
+    """ConvNeXt block with depthwise convolution and inverted bottleneck"""
+    def __init__(self, dim, drop_path=0.0, layer_scale_init_value=1e-6):
+        super().__init__()
+        # Depthwise 7x7 convolution
+        self.dwconv = nn.Conv2d(dim, dim, kernel_size=7, padding=3, groups=dim)
+        # LayerNorm
+        self.norm = LayerNorm2D(dim)
+        # Pointwise 1x1 convolution to expand channels (inverted bottleneck)
+        self.pwconv1 = nn.Conv2d(dim, 4 * dim, kernel_size=1)
+        # GELU activation
+        self.act = nn.GELU()
+        # Pointwise 1x1 convolution to project back
+        self.pwconv2 = nn.Conv2d(4 * dim, dim, kernel_size=1)
+        # Layer scale parameter for better training stability
+        self.gamma = nn.Parameter(
+            layer_scale_init_value * torch.ones(dim, 1, 1), 
+            requires_grad=True
+        ) if layer_scale_init_value > 0 else None
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
+
+    def forward(self, x):
+        input = x
+        # Depthwise convolution
+        x = self.dwconv(x)
+        # Normalization
+        x = self.norm(x)
+        # Pointwise expansion
+        x = self.pwconv1(x)
+        # Activation
+        x = self.act(x)
+        # Pointwise projection
+        x = self.pwconv2(x)
+        # Layer scale
+        if self.gamma is not None:
+            x = self.gamma * x
+        # Residual connection with drop path
+        x = input + self.drop_path(x)
+        return x
