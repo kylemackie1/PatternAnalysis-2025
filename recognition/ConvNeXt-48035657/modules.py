@@ -80,3 +80,56 @@ class ConvNeXtBlock(nn.Module):
         # Residual connection with drop path
         x = input + self.drop_path(x)
         return x
+    
+class ConvNeXt(nn.Module):
+    """
+    ConvNeXt architecture built based on the report and code
+    provided in "A ConvNet for the 2020s" (https://arxiv.org/abs/2201.03545)
+    """
+    def __init__(self, in_channels=1, depths=[3, 3, 9, 3], 
+                 dims=[96, 192, 384, 768], drop_path_rate=0.0):
+        super().__init__()
+        
+        # Stem: aggressive downsampling with 4x4 conv, stride 4
+        self.stem = nn.Sequential(
+            nn.Conv2d(in_channels, dims[0], kernel_size=4, stride=4),
+            LayerNorm2D(dims[0])
+        )
+        
+        # Build 4 stages
+        self.stages = nn.ModuleList()
+        dp_rates = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
+        cur = 0
+        
+        for i in range(4):
+            # Downsampling layer between stages (except first stage)
+            if i > 0:
+                downsample = nn.Sequential(
+                    LayerNorm2D(dims[i-1]),
+                    nn.Conv2d(dims[i-1], dims[i], kernel_size=2, stride=2)
+                )
+            else:
+                downsample = nn.Identity()
+            
+            # Stack ConvNeXt blocks
+            stage = nn.Sequential(
+                downsample,
+                *[ConvNeXtBlock(dims[i], drop_path=dp_rates[cur + j]) 
+                  for j in range(depths[i])]
+            )
+            self.stages.append(stage)
+            cur += depths[i]
+        
+        # Final normalization
+        self.norm = LayerNorm2D(dims[-1])
+        self.feature_dim = dims[-1]
+    
+    def forward(self, x):
+        """Extract features from input"""
+        x = self.stem(x)
+        for stage in self.stages:
+            x = stage(x)
+        x = self.norm(x)
+        # Global average pooling
+        x = x.mean([-2, -1])  # (N, C, H, W) -> (N, C)
+        return x
