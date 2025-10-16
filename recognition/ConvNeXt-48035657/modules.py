@@ -5,6 +5,7 @@ Using ConvNeXt based architecture for brain MRI classification
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class LayerNorm2D(nn.Module):
     """2D Layer Normalization for ConvNeXt blocks"""
@@ -208,3 +209,11 @@ class AlzheimerClassifier(nn.Module):
         output = self.classifier(aggregated)
         
         return output, attention_weights.squeeze(-1)
+    
+def create_model(num_classes=2, dropout=0.5, num_slices=16):
+    """Factory function to create the classifier model"""
+    return AlzheimerClassifier(
+        num_classes=num_classes,
+        dropout=dropout,
+        num_slices=num_slices
+    )
