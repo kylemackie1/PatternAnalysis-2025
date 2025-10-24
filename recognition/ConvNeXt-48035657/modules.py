@@ -88,7 +88,7 @@ class ConvNeXt(nn.Module):
     provided in "A ConvNet for the 2020s" (https://arxiv.org/abs/2201.03545)
     """
     def __init__(self, in_channels=1, depths=[3, 3, 9, 3], 
-                 dims=[96, 192, 384, 768], drop_path_rate=0.0):
+                 dims=[48, 96, 192, 384], drop_path_rate=0.0):
         super().__init__()
         
         # Stem: aggressive downsampling with 4x4 conv, stride 4
@@ -149,7 +149,7 @@ class AlzheimerClassifier(nn.Module):
         self.backbone = ConvNeXt(
             in_channels=1,  # Grayscale MRI
             depths=[3, 3, 9, 3],
-            dims=[96, 192, 384, 768],
+            dims=[48, 96, 192, 384],
             drop_path_rate=0.1
         )
         
