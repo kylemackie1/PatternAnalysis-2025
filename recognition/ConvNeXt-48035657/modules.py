@@ -138,11 +138,10 @@ class ConvNeXt(nn.Module):
 class AlzheimerClassifier(nn.Module):
     """
     ConvNeXt-based classifier for Alzheimer's disease detection
-    Handles 3D MRI volumes by processing multiple 2D slices
+    Processes 2D brain MRI images
     """
-    def __init__(self, num_classes=2, dropout=0.5, num_slices=16):
+    def __init__(self, num_classes=2, dropout=0.5):
         super().__init__()
-        self.num_slices = num_slices
         
         # Build ConvNeXt backbone (feature extractor only)
         # Using ConvNeXt-Tiny architecture: depths=[3,3,9,3], dims=[96,192,384,768]
@@ -156,14 +155,7 @@ class AlzheimerClassifier(nn.Module):
         # Get feature dimension from backbone
         feature_dim = self.backbone.feature_dim  # 768
         
-        # Attention mechanism for slice aggregation
-        self.slice_attention = nn.Sequential(
-            nn.Linear(feature_dim, feature_dim // 4),
-            nn.ReLU(),
-            nn.Linear(feature_dim // 4, 1)
-        )
-        
-        # Final classification head for 2 classes (Normal vs AD)
+        # Classification head for 2 classes (NC vs AD)
         self.classifier = nn.Sequential(
             nn.LayerNorm(feature_dim),
             nn.Dropout(dropout),
@@ -174,46 +166,19 @@ class AlzheimerClassifier(nn.Module):
         )
 
     def forward(self, x):
-        # x shape: (batch, slices, height, width) or (batch, 1, depth, height, width)
-        batch_size = x.shape[0]
+        # x shape: (batch, 1, height, width) - single 2D images
         
-        # Handle different input formats
-        if len(x.shape) == 5:  # (batch, 1, depth, height, width)
-            x = x.squeeze(1)  # (batch, depth, height, width)
+        # Extract features
+        features = self.backbone(x)  # (batch, 768)
         
-        # Sample slices if we have more than needed
-        if x.shape[1] > self.num_slices:
-            indices = torch.linspace(0, x.shape[1] - 1, self.num_slices).long()
-            x = x[:, indices, :, :]
+        # Classification
+        output = self.classifier(features)
         
-        num_slices = x.shape[1]
-        
-        # Reshape to process all slices: (batch * slices, 1, height, width)
-        x = x.unsqueeze(2)  # Add channel dimension
-        x = x.reshape(-1, 1, x.shape[-2], x.shape[-1])
-        
-        # Extract features from all slices
-        features = self.backbone(x)  # (batch * slices, 768)
-        
-        # Reshape back: (batch, slices, feature_dim)
-        features = features.reshape(batch_size, num_slices, -1)
-        
-        # Compute attention weights for each slice
-        attention_weights = self.slice_attention(features)  # (batch, slices, 1)
-        attention_weights = F.softmax(attention_weights, dim=1)
-        
-        # Aggregate features using attention
-        aggregated = (features * attention_weights).sum(dim=1)  # (batch, feature_dim)
-        
-        # Final classification
-        output = self.classifier(aggregated)
-        
-        return output, attention_weights.squeeze(-1)
+        return output
     
-def create_model(num_classes=2, dropout=0.5, num_slices=16):
+def create_model(num_classes=2, dropout=0.5):
     """Factory function to create the classifier model"""
     return AlzheimerClassifier(
         num_classes=num_classes,
-        dropout=dropout,
-        num_slices=num_slices
+        dropout=dropout
     )
