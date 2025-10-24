@@ -271,3 +271,90 @@ def prepare_data_from_directory(data_dir, val_size=0.15, random_state=42):
     print(f"  Test:  {len(test_files)} ({sum(test_labels)} AD, {len(test_labels)-sum(test_labels)} NC)")
     
     return train_files, train_labels, val_files, val_labels, test_files, test_labels
+
+
+def create_dataloaders(data_dir, batch_size=8, num_workers=4, 
+                       img_size=(224, 224), augment=True):
+    """
+    Create train, validation, and test dataloaders
+    
+    Args:
+        data_dir: Path to data directory with train/ and test/ subdirectories
+        batch_size: Batch size for training
+        num_workers: Number of parallel data loading workers
+        img_size: Target image size (height, width)
+        augment: Whether to apply data augmentation to training set
+        
+    Returns:
+        Tuple of (train_loader, val_loader, test_loader)
+    """
+    print("\n" + "=" * 70)
+    print("PREPARING DATALOADERS")
+    print("=" * 70)
+    
+    # Prepare data splits
+    train_files, train_labels, val_files, val_labels, test_files, test_labels = \
+        prepare_data_from_directory(data_dir)
+    
+    # Create augmentation for training
+    augmentation = DataAugmentation(
+        rotation_range=15,
+        horizontal_flip=True,
+        vertical_flip=False,
+        brightness_range=0.2,
+        contrast_range=0.2,
+        noise_std=0.02
+    ) if augment else None
+    
+    # Create datasets
+    train_dataset = ADNIDataset(
+        train_files, train_labels,
+        transform=augmentation,
+        img_size=img_size
+    )
+    
+    val_dataset = ADNIDataset(
+        val_files, val_labels,
+        transform=None,  # No augmentation for validation
+        img_size=img_size
+    )
+    
+    test_dataset = ADNIDataset(
+        test_files, test_labels,
+        transform=None,  # No augmentation for testing
+        img_size=img_size
+    )
+    
+    # Create dataloaders
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+        drop_last=True  # Drop last incomplete batch
+    )
+    
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True
+    )
+    
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True
+    )
+    
+    print(f"\nDataloaders created:")
+    print(f"  Train batches: {len(train_loader)}")
+    print(f"  Val batches: {len(val_loader)}")
+    print(f"  Test batches: {len(test_loader)}")
+    print("=" * 70 + "\n")
+    
+    return train_loader, val_loader, test_loader
