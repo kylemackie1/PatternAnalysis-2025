@@ -153,3 +153,121 @@ class DataAugmentation:
         image = torch.from_numpy(image).unsqueeze(0).float()
         
         return image
+    
+
+def prepare_data_from_directory(data_dir, val_size=0.15, random_state=42):
+    """
+    Prepare train/val/test splits from ADNI directory structure
+    
+    Expected directory structure:
+        data_dir/
+            ├── train/
+            │   ├── AD/
+            │   │   ├── scan1.jpg
+            │   │   └── ...
+            │   └── NC/
+            │       ├── scan1.jpg
+            │       └── ...
+            └── test/
+                ├── AD/
+                │   ├── scan1.jpg
+                │   └── ...
+                └── NC/
+                    ├── scan1.jpg
+                    └── ...
+    
+    Args:
+        data_dir: Path to root data directory (should contain train/ and test/)
+        val_size: Fraction of training data to use for validation
+        random_state: Random seed for reproducibility
+        
+    Returns:
+        Tuple of (train_paths, train_labels, val_paths, val_labels, test_paths, test_labels)
+    """
+    data_dir = Path(data_dir)
+    
+    # Check if directory structure is correct
+    train_dir = data_dir / 'train'
+    test_dir = data_dir / 'test'
+    
+    if not train_dir.exists() or not test_dir.exists():
+        raise ValueError(f"Expected 'train' and 'test' subdirectories in {data_dir}")
+    
+    # Collect training files (support jpg, jpeg, png)
+    train_nc_dir = train_dir / 'NC'
+    train_ad_dir = train_dir / 'AD'
+    
+    train_nc_files = []
+    train_ad_files = []
+    
+    if train_nc_dir.exists():
+        for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
+            train_nc_files.extend(list(train_nc_dir.glob(ext)))
+    
+    if train_ad_dir.exists():
+        for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
+            train_ad_files.extend(list(train_ad_dir.glob(ext)))
+    
+    # Collect test files
+    test_nc_dir = test_dir / 'NC'
+    test_ad_dir = test_dir / 'AD'
+    
+    test_nc_files = []
+    test_ad_files = []
+    
+    if test_nc_dir.exists():
+        for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
+            test_nc_files.extend(list(test_nc_dir.glob(ext)))
+    
+    if test_ad_dir.exists():
+        for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
+            test_ad_files.extend(list(test_ad_dir.glob(ext)))
+    
+    print(f"\nData Summary:")
+    print(f"  Training set:")
+    print(f"    NC (Normal) cases: {len(train_nc_files)}")
+    print(f"    AD cases: {len(train_ad_files)}")
+    print(f"    Total: {len(train_nc_files) + len(train_ad_files)}")
+    print(f"  Test set:")
+    print(f"    NC (Normal) cases: {len(test_nc_files)}")
+    print(f"    AD cases: {len(test_ad_files)}")
+    print(f"    Total: {len(test_nc_files) + len(test_ad_files)}")
+    
+    # Check if we have data
+    if len(train_nc_files) + len(train_ad_files) == 0:
+        raise ValueError(f"No training data found in {train_dir}")
+    if len(test_nc_files) + len(test_ad_files) == 0:
+        raise ValueError(f"No test data found in {test_dir}")
+    
+    # Prepare training data (will split into train/val)
+    train_all_files = train_nc_files + train_ad_files
+    train_all_labels = [0] * len(train_nc_files) + [1] * len(train_ad_files)  # 0=NC, 1=AD
+    
+    # Convert to strings
+    train_all_files = [str(f) for f in train_all_files]
+    
+    # Split training data into train and validation
+    train_files, val_files, train_labels, val_labels = train_test_split(
+        train_all_files, train_all_labels,
+        test_size=val_size,
+        random_state=random_state,
+        stratify=train_all_labels
+    )
+    
+    # Prepare test data
+    test_files = test_nc_files + test_ad_files
+    test_labels = [0] * len(test_nc_files) + [1] * len(test_ad_files)  # 0=NC, 1=AD
+    test_files = [str(f) for f in test_files]
+    
+    # Calculate class balance
+    total_samples = len(train_files) + len(val_files) + len(test_files)
+    total_ad = sum(train_labels) + sum(val_labels) + sum(test_labels)
+    
+    print(f"\nClass balance: {total_ad/total_samples:.2%} AD, {1-total_ad/total_samples:.2%} NC")
+    
+    print(f"\nSplit Summary:")
+    print(f"  Train: {len(train_files)} ({sum(train_labels)} AD, {len(train_labels)-sum(train_labels)} NC)")
+    print(f"  Val:   {len(val_files)} ({sum(val_labels)} AD, {len(val_labels)-sum(val_labels)} NC)")
+    print(f"  Test:  {len(test_files)} ({sum(test_labels)} AD, {len(test_labels)-sum(test_labels)} NC)")
+    
+    return train_files, train_labels, val_files, val_labels, test_files, test_labels
