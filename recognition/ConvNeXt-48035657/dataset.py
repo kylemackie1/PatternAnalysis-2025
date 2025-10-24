@@ -185,91 +185,83 @@ def prepare_data_from_directory(data_dir, val_size=0.15, random_state=42):
         Tuple of (train_paths, train_labels, val_paths, val_labels, test_paths, test_labels)
     """
     data_dir = Path(data_dir)
-    
-    # Check if directory structure is correct
+
+    # Check directory structure
     train_dir = data_dir / 'train'
     test_dir = data_dir / 'test'
-    
     if not train_dir.exists() or not test_dir.exists():
         raise ValueError(f"Expected 'train' and 'test' subdirectories in {data_dir}")
-    
-    # Collect training files (support jpg, jpeg, png)
-    train_nc_dir = train_dir / 'NC'
-    train_ad_dir = train_dir / 'AD'
-    
-    train_nc_files = []
-    train_ad_files = []
-    
-    if train_nc_dir.exists():
+
+    def collect_images(label_dir):
+        """Collect image paths and subject IDs."""
+        files, subjects = [], []
         for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
-            train_nc_files.extend(list(train_nc_dir.glob(ext)))
-    
-    if train_ad_dir.exists():
-        for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
-            train_ad_files.extend(list(train_ad_dir.glob(ext)))
-    
-    # Collect test files
-    test_nc_dir = test_dir / 'NC'
-    test_ad_dir = test_dir / 'AD'
-    
-    test_nc_files = []
-    test_ad_files = []
-    
-    if test_nc_dir.exists():
-        for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
-            test_nc_files.extend(list(test_nc_dir.glob(ext)))
-    
-    if test_ad_dir.exists():
-        for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
-            test_ad_files.extend(list(test_ad_dir.glob(ext)))
-    
+            for f in label_dir.glob(ext):
+                files.append(f)
+                subject_id = f.stem.split('_')[0]  # everything before the underscore
+                subjects.append(subject_id)
+        return files, subjects
+
+    # ---- Collect training images ----
+    train_nc_files, train_nc_subjects = collect_images(train_dir / 'NC')
+    train_ad_files, train_ad_subjects = collect_images(train_dir / 'AD')
+
+    # ---- Collect test images ----
+    test_nc_files, test_nc_subjects = collect_images(test_dir / 'NC')
+    test_ad_files, test_ad_subjects = collect_images(test_dir / 'AD')
+
     print(f"\nData Summary:")
-    print(f"  Training set:")
-    print(f"    NC (Normal) cases: {len(train_nc_files)}")
-    print(f"    AD cases: {len(train_ad_files)}")
-    print(f"    Total: {len(train_nc_files) + len(train_ad_files)}")
-    print(f"  Test set:")
-    print(f"    NC (Normal) cases: {len(test_nc_files)}")
-    print(f"    AD cases: {len(test_ad_files)}")
-    print(f"    Total: {len(test_nc_files) + len(test_ad_files)}")
-    
-    # Check if we have data
-    if len(train_nc_files) + len(train_ad_files) == 0:
-        raise ValueError(f"No training data found in {train_dir}")
-    if len(test_nc_files) + len(test_ad_files) == 0:
-        raise ValueError(f"No test data found in {test_dir}")
-    
-    # Prepare training data (will split into train/val)
+    print(f"  Training set: NC={len(train_nc_files)}, AD={len(train_ad_files)}, Total={len(train_nc_files)+len(train_ad_files)}")
+    print(f"  Test set: NC={len(test_nc_files)}, AD={len(test_ad_files)}, Total={len(test_nc_files)+len(test_ad_files)}")
+
+    # --- Combine and prepare for splitting ---
     train_all_files = train_nc_files + train_ad_files
-    train_all_labels = [0] * len(train_nc_files) + [1] * len(train_ad_files)  # 0=NC, 1=AD
-    
-    # Convert to strings
-    train_all_files = [str(f) for f in train_all_files]
-    
-    # Split training data into train and validation
-    train_files, val_files, train_labels, val_labels = train_test_split(
-        train_all_files, train_all_labels,
+    train_all_labels = [0] * len(train_nc_files) + [1] * len(train_ad_files)
+    train_all_subjects = train_nc_subjects + train_ad_subjects
+
+    # Get unique subjects and map labels (AD=1, NC=0)
+    subject_to_label = {}
+    for subj, label in zip(train_all_subjects, train_all_labels):
+        # If multiple scans exist for same subject, ensure consistent label
+        if subj not in subject_to_label:
+            subject_to_label[subj] = label
+
+    unique_subjects = list(subject_to_label.keys())
+    unique_labels = [subject_to_label[s] for s in unique_subjects]
+
+    # --- Split by subject ---
+    train_subs, val_subs = train_test_split(
+        unique_subjects,
         test_size=val_size,
         random_state=random_state,
-        stratify=train_all_labels
+        stratify=unique_labels
     )
-    
-    # Prepare test data
-    test_files = test_nc_files + test_ad_files
-    test_labels = [0] * len(test_nc_files) + [1] * len(test_ad_files)  # 0=NC, 1=AD
-    test_files = [str(f) for f in test_files]
-    
-    # Calculate class balance
+
+    # --- Assign images based on subject split ---
+    train_files, val_files, train_labels, val_labels = [], [], [], []
+    for f, subj, label in zip(train_all_files, train_all_subjects, train_all_labels):
+        if subj in train_subs:
+            train_files.append(str(f))
+            train_labels.append(label)
+        elif subj in val_subs:
+            val_files.append(str(f))
+            val_labels.append(label)
+
+    # --- Prepare test set ---
+    test_files = [str(f) for f in test_nc_files + test_ad_files]
+    test_labels = [0] * len(test_nc_files) + [1] * len(test_ad_files)
+
+    # --- Print summary ---
     total_samples = len(train_files) + len(val_files) + len(test_files)
     total_ad = sum(train_labels) + sum(val_labels) + sum(test_labels)
-    
-    print(f"\nClass balance: {total_ad/total_samples:.2%} AD, {1-total_ad/total_samples:.2%} NC")
-    
+
+    print(f"\nClass balance: {total_ad/total_samples:.2%} AD, {1 - total_ad/total_samples:.2%} NC")
     print(f"\nSplit Summary:")
     print(f"  Train: {len(train_files)} ({sum(train_labels)} AD, {len(train_labels)-sum(train_labels)} NC)")
     print(f"  Val:   {len(val_files)} ({sum(val_labels)} AD, {len(val_labels)-sum(val_labels)} NC)")
     print(f"  Test:  {len(test_files)} ({sum(test_labels)} AD, {len(test_labels)-sum(test_labels)} NC)")
-    
+
+    print(f"\nUnique subjects -> Train: {len(set(train_subs))}, Val: {len(set(val_subs))}")
     return train_files, train_labels, val_files, val_labels, test_files, test_labels
 
 
@@ -298,12 +290,12 @@ def create_dataloaders(data_dir, batch_size=8, num_workers=4,
     
     # Create augmentation for training
     augmentation = DataAugmentation(
-        rotation_range=15,
-        horizontal_flip=True,
+        rotation_range=0,
+        horizontal_flip=False,
         vertical_flip=False,
-        brightness_range=0.2,
-        contrast_range=0.2,
-        noise_std=0.02
+        brightness_range=0.25,
+        contrast_range=0.25,
+        noise_std=0.03
     ) if augment else None
     
     # Create datasets
