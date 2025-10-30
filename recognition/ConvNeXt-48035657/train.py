@@ -90,7 +90,7 @@ class Trainer:
             self.optimizer.zero_grad()
             
             # Forward pass
-            output = self.model(data)
+            output, _ = self.model(data)  # Ignore attention weights during training
             loss = self.criterion(output, target)
             
             # Backward pass
@@ -124,10 +124,10 @@ class Trainer:
         with torch.no_grad():
             for data, target in self.val_loader:
                 data, target = data.to(self.device), target.to(self.device)
-                
-                output = self.model(data)
+
+                output, _ = self.model(data)  # Ignore attention weights
                 loss = self.criterion(output, target)
-                
+
                 running_loss += loss.item()
                 probs = torch.softmax(output, dim=1)
                 preds = output.argmax(dim=1).cpu().numpy()
@@ -138,7 +138,7 @@ class Trainer:
         
         epoch_loss = running_loss / len(self.val_loader)
         epoch_acc = accuracy_score(all_labels, all_preds)
-        
+
         return epoch_loss, epoch_acc
     
     def test(self):
@@ -147,19 +147,21 @@ class Trainer:
         all_preds = []
         all_labels = []
         all_probs = []
+        all_attentions = []
         
         with torch.no_grad():
             for data, target in self.test_loader:
                 data, target = data.to(self.device), target.to(self.device)
-                
-                output = self.model(data)
+
+                output, attention = self.model(data)
                 probs = torch.softmax(output, dim=1)
                 preds = output.argmax(dim=1).cpu().numpy()
-                
+
                 all_preds.extend(preds)
                 all_labels.extend(target.cpu().numpy())
                 all_probs.extend(probs[:, 1].cpu().numpy())
-        
+                all_attentions.extend(attention.cpu().numpy())
+
         # Calculate metrics
         acc = accuracy_score(all_labels, all_preds)
         precision = precision_score(all_labels, all_preds, average='binary')
@@ -167,7 +169,7 @@ class Trainer:
         f1 = f1_score(all_labels, all_preds, average='binary')
         auc = roc_auc_score(all_labels, all_probs)
         cm = confusion_matrix(all_labels, all_preds)
-        
+
         metrics = {
             'accuracy': acc,
             'precision': precision,
@@ -178,74 +180,75 @@ class Trainer:
             'predictions': all_preds,
             'labels': all_labels,
             'probabilities': all_probs,
+            'attentions': all_attentions
         }
-        
+
         return metrics
-    
+
     def train(self, num_epochs, early_stopping_patience=15):
         """Train the model for multiple epochs"""
         print(f"Starting training for {num_epochs} epochs...")
         print(f"Device: {self.device}")
         print(f"Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
-        
+
         early_stopping = EarlyStopping(patience=early_stopping_patience, mode='max')
-        
+
         start_time = time.time()
-        
+
         for epoch in range(num_epochs):
             print(f"\nEpoch {epoch + 1}/{num_epochs}")
             print("-" * 50)
-            
+
             # Train
             train_loss, train_acc = self.train_epoch()
-            
+
             # Validate
             val_loss, val_acc = self.validate()
-            
+
             # Update learning rate
             if isinstance(self.scheduler, ReduceLROnPlateau):
                 self.scheduler.step(val_loss)
             else:
                 self.scheduler.step()
-            
+
             current_lr = self.optimizer.param_groups[0]['lr']
-            
+
             # Track metrics
             self.train_losses.append(train_loss)
             self.val_losses.append(val_loss)
             self.train_accs.append(train_acc)
             self.val_accs.append(val_acc)
             self.learning_rates.append(current_lr)
-            
+
             print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}")
             print(f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
             print(f"Learning Rate: {current_lr:.6f}")
-            
+
             # Save best model
             if val_acc > self.best_val_acc:
                 self.best_val_acc = val_acc
                 self.best_val_loss = val_loss
                 self.save_checkpoint('best_model.pth', epoch, val_acc, val_loss)
                 print(f"✓ New best model saved! Val Acc: {val_acc:.4f}")
-            
+
             # Early stopping check
             early_stopping(val_acc)
             if early_stopping.early_stop:
                 print(f"\nEarly stopping triggered at epoch {epoch + 1}")
                 break
-        
+
         total_time = time.time() - start_time
         print(f"\nTraining completed in {total_time / 60:.2f} minutes")
         print(f"Best validation accuracy: {self.best_val_acc:.4f}")
-        
+
         # Save training history
         self.save_training_history()
-        
+
         # Plot training curves
         self.plot_training_curves()
-        
+
         return self.best_val_acc
-    
+
     def save_checkpoint(self, filename, epoch, val_acc, val_loss):
         """Save model checkpoint"""
         checkpoint = {
@@ -261,7 +264,7 @@ class Trainer:
         }
         path = os.path.join(self.save_dir, filename)
         torch.save(checkpoint, path)
-    
+
     def load_checkpoint(self, filename):
         """Load model checkpoint"""
         path = os.path.join(self.save_dir, filename)
@@ -269,7 +272,7 @@ class Trainer:
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         return checkpoint
-    
+
     def save_training_history(self):
         """Save training history to JSON"""
         history = {
@@ -284,11 +287,11 @@ class Trainer:
         path = os.path.join(self.save_dir, 'training_history.json')
         with open(path, 'w') as f:
             json.dump(history, f, indent=4)
-    
+
     def plot_training_curves(self):
         """Plot and save training curves"""
         fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-        
+
         # Loss curves
         axes[0, 0].plot(self.train_losses, label='Train Loss', linewidth=2)
         axes[0, 0].plot(self.val_losses, label='Val Loss', linewidth=2)
@@ -297,7 +300,7 @@ class Trainer:
         axes[0, 0].set_title('Training and Validation Loss', fontsize=14, fontweight='bold')
         axes[0, 0].legend(fontsize=11)
         axes[0, 0].grid(True, alpha=0.3)
-        
+
         # Accuracy curves
         axes[0, 1].plot(self.train_accs, label='Train Acc', linewidth=2)
         axes[0, 1].plot(self.val_accs, label='Val Acc', linewidth=2)
@@ -307,7 +310,7 @@ class Trainer:
         axes[0, 1].set_title('Training and Validation Accuracy', fontsize=14, fontweight='bold')
         axes[0, 1].legend(fontsize=11)
         axes[0, 1].grid(True, alpha=0.3)
-        
+
         # Learning rate
         axes[1, 0].plot(self.learning_rates, linewidth=2, color='green')
         axes[1, 0].set_xlabel('Epoch', fontsize=12)
@@ -315,16 +318,16 @@ class Trainer:
         axes[1, 0].set_title('Learning Rate Schedule', fontsize=14, fontweight='bold')
         axes[1, 0].set_yscale('log')
         axes[1, 0].grid(True, alpha=0.3)
-        
+
         # Overfitting check
-        axes[1, 1].plot(np.array(self.train_accs) - np.array(self.val_accs), 
+        axes[1, 1].plot(np.array(self.train_accs) - np.array(self.val_accs),
                        linewidth=2, color='purple')
         axes[1, 1].axhline(y=0, color='black', linestyle='-', linewidth=1)
         axes[1, 1].set_xlabel('Epoch', fontsize=12)
         axes[1, 1].set_ylabel('Train Acc - Val Acc', fontsize=12)
         axes[1, 1].set_title('Overfitting Monitor', fontsize=14, fontweight='bold')
         axes[1, 1].grid(True, alpha=0.3)
-        
+
         plt.tight_layout()
         save_path = os.path.join(self.save_dir, 'training_curves.png')
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -335,7 +338,7 @@ class Trainer:
 def plot_confusion_matrix(cm, save_path):
     """Plot and save confusion matrix"""
     plt.figure(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
                 xticklabels=['Normal', 'AD'],
                 yticklabels=['Normal', 'AD'],
                 cbar_kws={'label': 'Count'})
@@ -362,7 +365,7 @@ def print_test_results(metrics):
     print(metrics['confusion_matrix'])
     print("\nClassification Report:")
     print(classification_report(
-        metrics['labels'], 
+        metrics['labels'],
         metrics['predictions'],
         target_names=['Normal', 'AD'],
         digits=4
