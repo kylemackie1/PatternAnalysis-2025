@@ -339,88 +339,107 @@ def prepare_data_from_directory(data_dir, val_size=0.15, random_state=42):
     return train_files, train_labels, val_files, val_labels, test_files, test_labels
 
 
-def create_dataloaders(data_dir, batch_size=8, num_workers=4, 
-                       img_size=(224, 224), augment=True):
+def create_dataloaders(data_dir, batch_size=8, num_workers=4,
+                       img_size=(224, 224), augment=True, use_validation=True,
+                       num_slices=20):
     """
     Create train, validation, and test dataloaders
-    
+
     Args:
         data_dir: Path to data directory with train/ and test/ subdirectories
-        batch_size: Batch size for training
-        num_workers: Number of parallel data loading workers
+        batch_size: Batch size for training (number of patients per batch)
+
         img_size: Target image size (height, width)
         augment: Whether to apply data augmentation to training set
-        
+        use_validation: If False, use all training data for training (no validation split)
+        num_slices: Number of slices per patient to use
+
     Returns:
         Tuple of (train_loader, val_loader, test_loader)
+        If use_validation=False, val_loader will be None
     """
     print("\n" + "=" * 70)
     print("PREPARING DATALOADERS")
     print("=" * 70)
-    
+
     # Prepare data splits
     train_files, train_labels, val_files, val_labels, test_files, test_labels = \
         prepare_data_from_directory(data_dir)
-    
+
     # Create augmentation for training
     augmentation = DataAugmentation(
-        rotation_range=0,
+        rotation_range=10,
         horizontal_flip=False,
         vertical_flip=False,
-        brightness_range=0.25,
-        contrast_range=0.25,
-        noise_std=0.03
+        brightness_range=0.3,
+        contrast_range=0.3,
+        noise_std=0.05
     ) if augment else None
-    
+
     # Create datasets
     train_dataset = ADNIDataset(
         train_files, train_labels,
         transform=augmentation,
-        img_size=img_size
+        img_size=img_size,
+        num_slices=num_slices
     )
-    
-    val_dataset = ADNIDataset(
-        val_files, val_labels,
-        transform=None,  # No augmentation for validation
-        img_size=img_size
-    )
-    
+
+    if use_validation and len(val_files) > 0:
+        val_dataset = ADNIDataset(
+            val_files, val_labels,
+            transform=None,  # No augmentation for validation
+            img_size=img_size,
+            num_slices=num_slices
+        )
+    else:
+        val_dataset = None
+
     test_dataset = ADNIDataset(
         test_files, test_labels,
         transform=None,  # No augmentation for testing
-        img_size=img_size
+        img_size=img_size,
+        num_slices=num_slices
     )
-    
+
     # Create dataloaders
+    effective_workers = num_workers
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=num_workers,
+        num_workers=effective_workers,
         pin_memory=True,
-        drop_last=True  # Drop last incomplete batch
+        drop_last=False  # Keep all patients
     )
-    
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True
-    )
-    
+
+    if val_dataset is not None:
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=effective_workers,
+            pin_memory=True
+        )
+    else:
+        val_loader = None
+
     test_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=num_workers,
+        num_workers=num_workers,  # Use workers for test
         pin_memory=True
     )
-    
+
     print(f"\nDataloaders created:")
-    print(f"  Train batches: {len(train_loader)}")
-    print(f"  Val batches: {len(val_loader)}")
+    print(f"  Train batches: {len(train_loader)} (patients per batch: {batch_size})")
+    if val_loader is not None:
+        print(f"  Val batches: {len(val_loader)}")
+    else:
+        print(f"  Val batches: None")
     print(f"  Test batches: {len(test_loader)}")
+    print(f"  Slices per patient: {num_slices}")
     print("=" * 70 + "\n")
-    
+
     return train_loader, val_loader, test_loader
