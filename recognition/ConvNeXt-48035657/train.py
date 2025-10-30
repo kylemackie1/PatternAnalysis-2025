@@ -378,13 +378,13 @@ def main(args):
     # Set random seeds for reproducibility
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    
+
     # Device configuration
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
-    
+
     # Create dataloaders
     print("\nLoading data...")
     train_loader, val_loader, test_loader = create_dataloaders(
@@ -392,37 +392,40 @@ def main(args):
         batch_size=args.batch_size,
         num_workers=args.num_workers,
         img_size=(args.img_size, args.img_size),
-        augment=True
+        augment=True,
+        use_validation=not args.no_validation,
+        num_slices=20
     )
-    
+
     # Create model
     print("\nCreating model...")
     model = create_model(
         num_classes=2,
-        dropout=args.dropout
+        dropout=args.dropout,
+        num_slices=20
     )
     model = model.to(device)
-    
+
     # Loss function
     criterion = nn.CrossEntropyLoss()
-    
+
     # Optimizer
     optimizer = optim.AdamW(
         model.parameters(),
         lr=args.lr,
         weight_decay=args.weight_decay
     )
-    
+
     # Learning rate scheduler
     if args.scheduler == 'plateau':
         scheduler = ReduceLROnPlateau(
-            optimizer, mode='min', factor=0.5, patience=5, verbose=True
+            optimizer, mode='min', factor=0.5, patience=5
         )
     else:
         scheduler = CosineAnnealingLR(
             optimizer, T_max=args.epochs, eta_min=1e-6
         )
-    
+
     # Create trainer
     trainer = Trainer(
         model=model,
@@ -435,27 +438,27 @@ def main(args):
         device=device,
         save_dir=args.save_dir
     )
-    
+
     # Train model
     best_val_acc = trainer.train(
         num_epochs=args.epochs,
         early_stopping_patience=args.patience
     )
-    
+
     # Load best model and test
     print("\nLoading best model for testing...")
     trainer.load_checkpoint('best_model.pth')
-    
+
     print("\nEvaluating on test set...")
     test_metrics = trainer.test()
-    
+
     # Print and save results
     print_test_results(test_metrics)
-    
+
     # Plot confusion matrix
     cm_path = os.path.join(args.save_dir, 'confusion_matrix.png')
     plot_confusion_matrix(test_metrics['confusion_matrix'], cm_path)
-    
+
     # Save test metrics
     metrics_to_save = {
         'accuracy': float(test_metrics['accuracy']),
@@ -465,13 +468,13 @@ def main(args):
         'auc': float(test_metrics['auc']),
         'confusion_matrix': test_metrics['confusion_matrix'].tolist()
     }
-    
+
     metrics_path = os.path.join(args.save_dir, 'test_metrics.json')
     with open(metrics_path, 'w') as f:
         json.dump(metrics_to_save, f, indent=4)
-    
+
     print(f"\nTest metrics saved to {metrics_path}")
-    
+
     # Check if target accuracy reached
     if test_metrics['accuracy'] >= 0.8:
         print(f"\n✓ SUCCESS! Target accuracy of 0.8 achieved: {test_metrics['accuracy']:.4f}")
@@ -482,17 +485,15 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train Alzheimer\'s Disease Classifier')
-    
+
     # Data parameters
     parser.add_argument('--data_dir', type=str, required=True,
                        help='Path to data directory')
-    parser.add_argument('--num_slices', type=int, default=16,
-                       help='Number of slices per volume')
     parser.add_argument('--img_size', type=int, default=224,
                        help='Image size (height and width)')
-    
+
     # Training parameters
-    parser.add_argument('--epochs', type=int, default=50,
+    parser.add_argument('--epochs', type=int, default=100,
                        help='Number of training epochs')
     parser.add_argument('--batch_size', type=int, default=8,
                        help='Batch size')
@@ -500,16 +501,16 @@ if __name__ == "__main__":
                        help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-4,
                        help='Weight decay')
-    parser.add_argument('--patience', type=int, default=15,
-                       help='Early stopping patience')
-    
-    # Model parameters
     parser.add_argument('--dropout', type=float, default=0.5,
                        help='Dropout rate')
+    parser.add_argument('--patience', type=int, default=15,
+                       help='Early stopping patience')
+
+    # Model parameters
     parser.add_argument('--scheduler', type=str, default='cosine',
                        choices=['plateau', 'cosine'],
                        help='Learning rate scheduler')
-    
+
     # Other parameters
     parser.add_argument('--num_workers', type=int, default=4,
                        help='Number of data loading workers')
@@ -517,21 +518,23 @@ if __name__ == "__main__":
                        help='Random seed')
     parser.add_argument('--save_dir', type=str, default='checkpoints',
                        help='Directory to save checkpoints')
-    
+    parser.add_argument('--no_validation', action='store_true',
+                       help='Skip validation, use all training data')
+
     args = parser.parse_args()
-    
+
     # Create save directory
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     args.save_dir = os.path.join(args.save_dir, f'run_{timestamp}')
     os.makedirs(args.save_dir, exist_ok=True)
-    
+
     # Save configuration
     config_path = os.path.join(args.save_dir, 'config.json')
     with open(config_path, 'w') as f:
         json.dump(vars(args), f, indent=4)
-    
+
     print("Configuration:")
     print(json.dumps(vars(args), indent=2))
-    
+
     # Run training
     main(args)
