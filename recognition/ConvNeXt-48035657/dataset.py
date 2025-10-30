@@ -20,61 +20,93 @@ class ADNIDataset(Dataset):
     Dataset class for ADNI brain MRI scans (JPEG images)
     Each sample is a 2D brain scan image
     """
-    def __init__(self, file_paths, labels, transform=None, img_size=(224, 224)):
+    def __init__(self, file_paths, labels, transform=None, img_size=(224, 224),
+                 num_slices=20):
         """
         Args:
             file_paths: List of paths to JPEG files
             labels: List of labels (0 for NC/Normal, 1 for AD)
             transform: Data augmentation transforms
             img_size: Target image size (height, width)
+            num_slices: Expected number of slices per patient
         """
-        self.file_paths = file_paths
-        self.labels = labels
         self.transform = transform
         self.img_size = img_size
-        
-        print(f"Dataset initialized with {len(file_paths)} images")
+        self.num_slices = num_slices
+
+        # Group files by patient ID
+        self.patients = {}
+        for path, label in zip(file_paths, labels):
+            # Extract patient ID (everything before first underscore)
+            patient_id = Path(path).stem.split('_')[0]
+
+            if patient_id not in self.patients:
+                self.patients[patient_id] = {'files': [], 'label': label}
+            self.patients[patient_id]['files'].append(path)
+
+        # Convert to list for indexing
+        self.patient_ids = list(self.patients.keys())
+
+        print(f"Dataset initialized with {len(self.patient_ids)} patients")
+        print(f"  - Total images: {len(file_paths)}")
+        print(f"  - Avg slices per patient: {len(file_paths)/len(self.patient_ids):.1f}")
         print(f"  - Image size: {img_size}")
-        
+
     def __len__(self):
-        return len(self.file_paths)
-    
+        return len(self.patient_ids)
+
     def __getitem__(self, idx):
-        """Load and preprocess a single MRI image"""
-        img_path = self.file_paths[idx]
-        label = self.labels[idx]
-        
-        try:
-            # Load image
-            image = Image.open(img_path)
-            
-            # Convert to numpy array
-            image = np.array(image, dtype=np.float32)
-            
-            # Normalize to [0, 1]
-            image = image / 255.0
-            
-            # Resize if needed
-            if image.shape != self.img_size:
-                image = Image.fromarray((image * 255).astype(np.uint8))
-                image = image.resize(self.img_size, Image.BILINEAR)
-                image = np.array(image, dtype=np.float32) / 255.0
-            
-        except Exception as e:
-            print(f"Error loading {img_path}: {e}")
-            # Return zeros if loading fails
-            image = np.zeros(self.img_size, dtype=np.float32)
-        
-        # Apply augmentation
+        """Load and preprocess all slices for a single patient"""
+        patient_id = self.patient_ids[idx]
+        patient_data = self.patients[patient_id]
+        file_paths = sorted(patient_data['files'])  # Sort to ensure consistent order
+        label = patient_data['label']
+
+        slices = []
+        for img_path in file_paths:
+            try:
+                # Load image
+                image = Image.open(img_path)
+
+                # Convert to grayscale if needed
+                if image.mode != 'L':
+                    image = image.convert('L')
+
+                # Convert to numpy array
+                image = np.array(image, dtype=np.float32)
+
+                # Normalize to [0, 1]
+                image = image / 255.0
+
+                # Resize if needed
+                if image.shape != self.img_size:
+                    image = Image.fromarray((image * 255).astype(np.uint8))
+                    image = image.resize(self.img_size, Image.BILINEAR)
+                    image = np.array(image, dtype=np.float32) / 255.0
+
+            except Exception as e:
+                print(f"Error loading {img_path}: {e}")
+                image = np.zeros(self.img_size, dtype=np.float32)
+
+            slices.append(image)
+
+        # Stack slices into array
+        slices_array = np.stack(slices, axis=0)  # (num_slices, height, width)
+
+        # Apply augmentation to each slice
         if self.transform:
-            image = self.transform(image)
+            augmented_slices = []
+            for slice_2d in slices_array:
+                aug_slice = self.transform(slice_2d)
+                augmented_slices.append(aug_slice.squeeze(0))  # Remove channel dim
+            slices_array = torch.stack(augmented_slices, dim=0)  # (num_slices, height, width)
         else:
-            # Convert to tensor (add channel dimension)
-            image = torch.from_numpy(image).unsqueeze(0).float()
-        
+            # Convert to tensor
+            slices_array = torch.from_numpy(slices_array).float()
+
         label = torch.tensor(label, dtype=torch.long)
-        
-        return image, label
+
+        return slices_array, label
 
 
 class DataAugmentation:
