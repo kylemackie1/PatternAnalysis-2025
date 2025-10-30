@@ -58,7 +58,7 @@ class ConvNeXtBlock(nn.Module):
         self.pwconv2 = nn.Conv2d(4 * dim, dim, kernel_size=1)
         # Layer scale parameter for better training stability
         self.gamma = nn.Parameter(
-            layer_scale_init_value * torch.ones(dim, 1, 1), 
+            layer_scale_init_value * torch.ones(dim, 1, 1),
             requires_grad=True
         ) if layer_scale_init_value > 0 else None
         self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
@@ -84,24 +84,24 @@ class ConvNeXtBlock(nn.Module):
     
 class ConvNeXt(nn.Module):
     """
-    ConvNeXt architecture built based on the report and code
-    provided in "A ConvNet for the 2020s" (https://arxiv.org/abs/2201.03545)
+    ConvNeXt architecture built from scratch (feature extractor only)
+    Based on: "A ConvNet for the 2020s" (https://arxiv.org/abs/2201.03545)
     """
-    def __init__(self, in_channels=1, depths=[3, 3, 9, 3], 
-                 dims=[48, 96, 192, 384], drop_path_rate=0.0):
+    def __init__(self, in_channels=1, depths=[3, 3, 9, 3],
+                 dims=[96, 192, 384, 768], drop_path_rate=0.0):
         super().__init__()
-        
+
         # Stem: aggressive downsampling with 4x4 conv, stride 4
         self.stem = nn.Sequential(
             nn.Conv2d(in_channels, dims[0], kernel_size=4, stride=4),
             LayerNorm2D(dims[0])
         )
-        
+
         # Build 4 stages
         self.stages = nn.ModuleList()
         dp_rates = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
         cur = 0
-        
+
         for i in range(4):
             # Downsampling layer between stages (except first stage)
             if i > 0:
@@ -111,20 +111,20 @@ class ConvNeXt(nn.Module):
                 )
             else:
                 downsample = nn.Identity()
-            
+
             # Stack ConvNeXt blocks
             stage = nn.Sequential(
                 downsample,
-                *[ConvNeXtBlock(dims[i], drop_path=dp_rates[cur + j]) 
+                *[ConvNeXtBlock(dims[i], drop_path=dp_rates[cur + j])
                   for j in range(depths[i])]
             )
             self.stages.append(stage)
             cur += depths[i]
-        
+
         # Final normalization
         self.norm = LayerNorm2D(dims[-1])
         self.feature_dim = dims[-1]
-    
+
     def forward(self, x):
         """Extract features from input"""
         x = self.stem(x)
@@ -138,23 +138,31 @@ class ConvNeXt(nn.Module):
 class AlzheimerClassifier(nn.Module):
     """
     ConvNeXt-based classifier for Alzheimer's disease detection
-    Processes 2D brain MRI images
+    Processes multiple 2D brain MRI slices per patient
     """
-    def __init__(self, num_classes=2, dropout=0.5):
+    def __init__(self, num_classes=2, dropout=0.5, num_slices=20):
         super().__init__()
-        
+        self.num_slices = num_slices
+
         # Build ConvNeXt backbone (feature extractor only)
         # Using ConvNeXt-Tiny architecture: depths=[3,3,9,3], dims=[96,192,384,768]
         self.backbone = ConvNeXt(
-            in_channels=1,  # Grayscale MRI
+            in_channels=1,
             depths=[3, 3, 9, 3],
-            dims=[48, 96, 192, 384],
-            drop_path_rate=0.1
+            dims=[96, 192, 384, 768],
+            drop_path_rate=0.05
         )
-        
+
         # Get feature dimension from backbone
         feature_dim = self.backbone.feature_dim  # 768
-        
+
+        # Attention mechanism for slice aggregation
+        self.slice_attention = nn.Sequential(
+            nn.Linear(feature_dim, feature_dim // 4),
+            nn.ReLU(),
+            nn.Linear(feature_dim // 4, 1)
+        )
+
         # Classification head for 2 classes (NC vs AD)
         self.classifier = nn.Sequential(
             nn.LayerNorm(feature_dim),
@@ -166,19 +174,36 @@ class AlzheimerClassifier(nn.Module):
         )
 
     def forward(self, x):
-        # x shape: (batch, 1, height, width) - single 2D images
-        
-        # Extract features
-        features = self.backbone(x)  # (batch, 768)
-        
+        # x shape: (batch, num_slices, height, width)
+        batch_size = x.shape[0]
+        num_slices = x.shape[1]
+
+        # Reshape to process all slices: (batch * num_slices, 1, height, width)
+        x = x.view(batch_size * num_slices, 1, x.shape[2], x.shape[3])
+
+        # Extract features from all slices
+        features = self.backbone(x)  # (batch * num_slices, 768)
+
+        # Reshape back: (batch, num_slices, feature_dim)
+        features = features.view(batch_size, num_slices, -1)
+
+        # Compute attention weights for each slice
+        attention_weights = self.slice_attention(features)  # (batch, num_slices, 1)
+        attention_weights = F.softmax(attention_weights, dim=1)
+
+        # Aggregate features using attention
+        aggregated = (features * attention_weights).sum(dim=1)  # (batch, feature_dim)
+
         # Classification
-        output = self.classifier(features)
-        
-        return output
-    
-def create_model(num_classes=2, dropout=0.5):
+        output = self.classifier(aggregated)
+
+        return output, attention_weights.squeeze(-1)
+
+
+def create_model(num_classes=2, dropout=0.5, num_slices=20):
     """Factory function to create the classifier model"""
     return AlzheimerClassifier(
         num_classes=num_classes,
-        dropout=dropout
+        dropout=dropout,
+        num_slices=num_slices
     )
