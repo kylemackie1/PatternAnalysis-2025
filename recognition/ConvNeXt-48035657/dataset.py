@@ -114,8 +114,8 @@ class DataAugmentation:
     Data augmentation transforms for MRI images
     Applied during training to increase data diversity
     """
-    def __init__(self, rotation_range=15, horizontal_flip=True, 
-                 vertical_flip=False, brightness_range=0.2, 
+    def __init__(self, rotation_range=15, horizontal_flip=True,
+                 vertical_flip=False, brightness_range=0.2,
                  contrast_range=0.2, noise_std=0.02):
         """
         Args:
@@ -132,14 +132,14 @@ class DataAugmentation:
         self.brightness_range = brightness_range
         self.contrast_range = contrast_range
         self.noise_std = noise_std
-    
+
     def __call__(self, image):
         """
         Apply random augmentations to image
-        
+
         Args:
             image: 2D numpy array (height, width) in range [0, 1]
-            
+
         Returns:
             Augmented image as tensor (1, height, width)
         """
@@ -150,47 +150,47 @@ class DataAugmentation:
         if self.rotation_range > 0:
             angle = random.uniform(-self.rotation_range, self.rotation_range)
             image_pil = image_pil.rotate(angle, resample=Image.BILINEAR, fillcolor=0)
-        
+
         # Random horizontal flip
         if self.horizontal_flip and random.random() > 0.5:
             image_pil = image_pil.transpose(Image.FLIP_LEFT_RIGHT)
-        
+
         # Random vertical flip
         if self.vertical_flip and random.random() > 0.5:
             image_pil = image_pil.transpose(Image.FLIP_TOP_BOTTOM)
-        
+
         # Convert back to numpy
         image = np.array(image_pil, dtype=np.float32) / 255.0
-        
+
         # Brightness adjustment
         if self.brightness_range > 0:
             factor = random.uniform(1 - self.brightness_range, 1 + self.brightness_range)
             image = image * factor
             image = np.clip(image, 0, 1)
-        
+
         # Contrast adjustment
         if self.contrast_range > 0:
             mean = image.mean()
             factor = random.uniform(1 - self.contrast_range, 1 + self.contrast_range)
             image = (image - mean) * factor + mean
             image = np.clip(image, 0, 1)
-        
+
         # Gaussian noise
         if self.noise_std > 0:
             noise = np.random.normal(0, self.noise_std, image.shape)
             image = image + noise
             image = np.clip(image, 0, 1)
-        
+
         # Convert to tensor and add channel dimension
         image = torch.from_numpy(image).unsqueeze(0).float()
-        
+
         return image
     
 
 def prepare_data_from_directory(data_dir, val_size=0.15, random_state=42):
     """
     Prepare train/val/test splits from ADNI directory structure
-    
+
     Expected directory structure:
         data_dir/
             ├── train/
@@ -204,96 +204,138 @@ def prepare_data_from_directory(data_dir, val_size=0.15, random_state=42):
                 ├── AD/
                 │   ├── scan1.jpg
                 │   └── ...
-                └── NC/
+                └── NCg
                     ├── scan1.jpg
                     └── ...
-    
+
     Args:
         data_dir: Path to root data directory (should contain train/ and test/)
         val_size: Fraction of training data to use for validation
         random_state: Random seed for reproducibility
-        
+
     Returns:
         Tuple of (train_paths, train_labels, val_paths, val_labels, test_paths, test_labels)
     """
     data_dir = Path(data_dir)
 
-    # Check directory structure
+    # Check if directory structure is correct
     train_dir = data_dir / 'train'
     test_dir = data_dir / 'test'
+
     if not train_dir.exists() or not test_dir.exists():
         raise ValueError(f"Expected 'train' and 'test' subdirectories in {data_dir}")
 
-    def collect_images(label_dir):
-        """Collect image paths and subject IDs."""
-        files, subjects = [], []
+    # Collect training files
+    train_nc_dir = train_dir / 'NC'
+    train_ad_dir = train_dir / 'AD'
+    train_nc_files = []
+    train_ad_files = []
+    if train_nc_dir.exists():
         for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
-            for f in label_dir.glob(ext):
-                files.append(f)
-                subject_id = f.stem.split('_')[0]  # everything before the underscore
-                subjects.append(subject_id)
-        return files, subjects
+            train_nc_files.extend(list(train_nc_dir.glob(ext)))
+    if train_ad_dir.exists():
+        for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
+            train_ad_files.extend(list(train_ad_dir.glob(ext)))
 
-    # ---- Collect training images ----
-    train_nc_files, train_nc_subjects = collect_images(train_dir / 'NC')
-    train_ad_files, train_ad_subjects = collect_images(train_dir / 'AD')
+    # Collect test files
+    test_nc_dir = test_dir / 'NC'
+    test_ad_dir = test_dir / 'AD'
+    test_nc_files = []
+    test_ad_files = []
+    if test_nc_dir.exists():
+        for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
+            test_nc_files.extend(list(test_nc_dir.glob(ext)))
+    if test_ad_dir.exists():
+        for ext in ['*.jpg', '*.jpeg', '*.png', '*.JPG', '*.JPEG', '*.PNG']:
+            test_ad_files.extend(list(test_ad_dir.glob(ext)))
 
-    # ---- Collect test images ----
-    test_nc_files, test_nc_subjects = collect_images(test_dir / 'NC')
-    test_ad_files, test_ad_subjects = collect_images(test_dir / 'AD')
+    print(f"\nData Summary (Raw Files):")
+    print(f"  Training set:")
+    print(f"    NC (Normal) files: {len(train_nc_files)}")
+    print(f"    AD files: {len(train_ad_files)}")
+    print(f"    Total files: {len(train_nc_files) + len(train_ad_files)}")
+    print(f"  Test set:")
+    print(f"    NC (Normal) files: {len(test_nc_files)}")
+    print(f"    AD files: {len(test_ad_files)}")
+    print(f"    Total files: {len(test_nc_files) + len(test_ad_files)}")
 
-    print(f"\nData Summary:")
-    print(f"  Training set: NC={len(train_nc_files)}, AD={len(train_ad_files)}, Total={len(train_nc_files)+len(train_ad_files)}")
-    print(f"  Test set: NC={len(test_nc_files)}, AD={len(test_ad_files)}, Total={len(test_nc_files)+len(test_ad_files)}")
+    if len(train_nc_files) + len(train_ad_files) == 0:
+        raise ValueError(f"No training data found in {train_dir}")
+    if len(test_nc_files) + len(test_ad_files) == 0:
+        raise ValueError(f"No test data found in {test_dir}")
 
-    # --- Combine and prepare for splitting ---
-    train_all_files = train_nc_files + train_ad_files
+    # Group training files by patient
+    print("\nGrouping training files by patient for splitting...")
+
+    train_all_files = [str(f) for f in (train_nc_files + train_ad_files)]
     train_all_labels = [0] * len(train_nc_files) + [1] * len(train_ad_files)
-    train_all_subjects = train_nc_subjects + train_ad_subjects
 
-    # Get unique subjects and map labels (AD=1, NC=0)
-    subject_to_label = {}
-    for subj, label in zip(train_all_subjects, train_all_labels):
-        # If multiple scans exist for same subject, ensure consistent label
-        if subj not in subject_to_label:
-            subject_to_label[subj] = label
+    patients = {} # {patient_id: {'files': [...], 'label': 0 or 1}}
+    for path, label in zip(train_all_files, train_all_labels):
+        # Extract patient ID (everything before first underscore)
+        patient_id = Path(path).stem.split('_')[0]
 
-    unique_subjects = list(subject_to_label.keys())
-    unique_labels = [subject_to_label[s] for s in unique_subjects]
+        if patient_id not in patients:
+            patients[patient_id] = {'files': [], 'label': label}
+        patients[patient_id]['files'].append(path)
 
-    # --- Split by subject ---
-    train_subs, val_subs = train_test_split(
-        unique_subjects,
-        test_size=val_size,
-        random_state=random_state,
-        stratify=unique_labels
-    )
+    patient_ids = list(patients.keys())
+    # Get the single label for each patient
+    patient_labels = [patients[pid]['label'] for pid in patient_ids]
 
-    # --- Assign images based on subject split ---
-    train_files, val_files, train_labels, val_labels = [], [], [], []
-    for f, subj, label in zip(train_all_files, train_all_subjects, train_all_labels):
-        if subj in train_subs:
-            train_files.append(str(f))
-            train_labels.append(label)
-        elif subj in val_subs:
-            val_files.append(str(f))
-            val_labels.append(label)
+    print(f"Found {len(patient_ids)} unique patients in the 'train' directory.")
 
-    # --- Prepare test set ---
-    test_files = [str(f) for f in test_nc_files + test_ad_files]
-    test_labels = [0] * len(test_nc_files) + [1] * len(test_ad_files)
+    # Split at the PATIENT level
+    if val_size > 0:
+        train_patient_ids, val_patient_ids, _, _ = train_test_split(
+            patient_ids,
+            patient_labels, # Use patient labels for stratification
+            test_size=val_size,
+            random_state=random_state,
+            stratify=patient_labels
+        )
+    else:
+        # No validation split
+        train_patient_ids = patient_ids
+        val_patient_ids = []
 
-    # --- Print summary ---
-    total_samples = len(train_files) + len(val_files) + len(test_files)
-    total_ad = sum(train_labels) + sum(val_labels) + sum(test_labels)
+    # Unroll patient lists back into file lists
+    train_files = []
+    train_labels = []
+    for pid in train_patient_ids:
+        train_files.extend(patients[pid]['files'])
+        # Add the patient's label once for each of their files
+        train_labels.extend([patients[pid]['label']] * len(patients[pid]['files']))
 
-    print(f"\nClass balance: {total_ad/total_samples:.2%} AD, {1 - total_ad/total_samples:.2%} NC")
-    print(f"\nSplit Summary:")
-    print(f"  Train: {len(train_files)} ({sum(train_labels)} AD, {len(train_labels)-sum(train_labels)} NC)")
-    print(f"  Val:   {len(val_files)} ({sum(val_labels)} AD, {len(val_labels)-sum(val_labels)} NC)")
-    print(f"  Test:  {len(test_files)} ({sum(test_labels)} AD, {len(test_labels)-sum(test_labels)} NC)")
+    val_files = []
+    val_labels = []
+    for pid in val_patient_ids:
+        val_files.extend(patients[pid]['files'])
+        val_labels.extend([patients[pid]['label']] * len(patients[pid]['files']))
 
-    print(f"\nUnique subjects -> Train: {len(set(train_subs))}, Val: {len(set(val_subs))}")
+    # Prepare test data
+    test_files = [str(f) for f in (test_nc_files + test_ad_files)]
+    test_labels = [0] * len(test_nc_files) + [1] * len(test_ad_files) # 0=NC, 1=AD
+
+    # In dataset.py after splitting
+    train_patient_ids = set([Path(f).stem.split('_')[0] for f in train_files])
+    val_patient_ids = set([Path(f).stem.split('_')[0] for f in val_files])
+    overlap = train_patient_ids & val_patient_ids
+
+    if overlap:
+        print(f"ERROR: {len(overlap)} patients appear in both train and val!")
+        print(f"Examples: {list(overlap)[:5]}")
+    else:
+        print(f"✓ No patient overlap between train and val")
+
+    # Final print summary
+    print(f"\nSplit Summary (File Counts):")
+    print(f"  Train: {len(train_files)} files ({sum(train_labels)} AD, {len(train_labels)-sum(train_labels)} NC)")
+    print(f"         ({len(train_patient_ids)} patients)")
+    print(f"  Val:   {len(val_files)} files ({sum(val_labels)} AD, {len(val_labels)-sum(val_labels)} NC)")
+    print(f"         ({len(val_patient_ids)} patients)")
+    print(f"  Test:  {len(test_files)} files ({sum(test_labels)} AD, {len(test_labels)-sum(test_labels)} NC)")
+
     return train_files, train_labels, val_files, val_labels, test_files, test_labels
 
 
