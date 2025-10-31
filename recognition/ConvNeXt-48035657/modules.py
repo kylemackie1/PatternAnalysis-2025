@@ -145,7 +145,7 @@ class AlzheimerClassifier(nn.Module):
         self.num_slices = num_slices
 
         # Build ConvNeXt backbone (feature extractor only)
-        # Using ConvNeXt-Small architecture: depths=[3,3,9,3], dims=[96,192,384,768]
+        # Using ConvNeXt-Tiny architecture: depths=[3,3,9,3], dims=[96,192,384,768]
         self.backbone = ConvNeXt(
             in_channels=1,
             depths=[3, 3, 9, 3],

@@ -161,6 +161,8 @@ These figures can be seen below:
 
 ![](images/attention_analysis.png "Attention Analysis")
 
+The final model tested achieved a test accuracy of 0.6978, which is below the desired value of 0.8. As such, more generalisation techniques would be investigated if attempted again in order to improve performance on the test set and reduce overfitting.
+
 ## References
 
 IA. (2025). What Is Alzheimer's Disease? Retrieved October 26, 2025, from National Institute on Aging: https://www.nia.nih.gov/health/alzheimers-and-dementia/what-alzheimers-disease
