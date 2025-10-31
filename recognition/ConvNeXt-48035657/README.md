@@ -153,6 +153,14 @@ To evaluate and visualise model performance we will plot the following figures:
 
 These figures can be seen below:
 
+![](images/AccuracyPlot.png "Accuracy Plot")
+
+![](images/confusion_matrix.png "Confusion Matrix")
+
+![](images/roc_curve.png "ROC Curve")
+
+![](images/attention_analysis.png "Attention Analysis")
+
 ## References
 
 IA. (2025). What Is Alzheimer's Disease? Retrieved October 26, 2025, from National Institute on Aging: https://www.nia.nih.gov/health/alzheimers-and-dementia/what-alzheimers-disease
