@@ -55,6 +55,56 @@ def plot_roc_curve(labels, probs, save_path):
     print(f"ROC curve saved to {save_path}")
     plt.close()
 
+
+def plot_attention_analysis(attentions, labels, predictions, save_path):
+    """Plot attention weight analysis"""
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+    # Separate by class
+    nc_attentions = np.array([att for att, label in zip(attentions, labels) if label == 0])
+    ad_attentions = np.array([att for att, label in zip(attentions, labels) if label == 1])
+
+    # Average attention per slice for each class
+    if len(nc_attentions) > 0:
+        nc_avg = nc_attentions.mean(axis=0)
+        axes[0, 0].bar(range(len(nc_avg)), nc_avg, color='steelblue', alpha=0.7)
+        axes[0, 0].set_title('Average Attention - Normal Control', fontsize=12, fontweight='bold')
+        axes[0, 0].set_xlabel('Slice Index')
+        axes[0, 0].set_ylabel('Average Attention Weight')
+        axes[0, 0].grid(True, alpha=0.3)
+
+    if len(ad_attentions) > 0:
+        ad_avg = ad_attentions.mean(axis=0)
+        axes[0, 1].bar(range(len(ad_avg)), ad_avg, color='coral', alpha=0.7)
+        axes[0, 1].set_title('Average Attention - Alzheimer\'s Disease', fontsize=12, fontweight='bold')
+        axes[0, 1].set_xlabel('Slice Index')
+        axes[0, 1].set_ylabel('Average Attention Weight')
+        axes[0, 1].grid(True, alpha=0.3)
+
+    # Compare NC vs AD attention patterns
+    if len(nc_attentions) > 0 and len(ad_attentions) > 0:
+        axes[1, 0].plot(nc_avg, label='Normal', linewidth=2, marker='o')
+        axes[1, 0].plot(ad_avg, label='AD', linewidth=2, marker='s')
+        axes[1, 0].set_title('Attention Pattern Comparison', fontsize=12, fontweight='bold')
+        axes[1, 0].set_xlabel('Slice Index')
+        axes[1, 0].set_ylabel('Average Attention Weight')
+        axes[1, 0].legend()
+        axes[1, 0].grid(True, alpha=0.3)
+
+    # Distribution of max attention weights
+    max_attentions = [att.max() for att in attentions]
+    axes[1, 1].hist(max_attentions, bins=30, color='purple', alpha=0.7, edgecolor='black')
+    axes[1, 1].set_title('Distribution of Max Attention Weights', fontsize=12, fontweight='bold')
+    axes[1, 1].set_xlabel('Max Attention Weight')
+    axes[1, 1].set_ylabel('Frequency')
+    axes[1, 1].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    print(f"Attention analysis saved to {save_path}")
+    plt.close()
+
+
 def evaluate_model(model, test_loader, device):
     """
     Evaluate model on test set
@@ -164,6 +214,15 @@ def save_results(metrics, output_dir):
     roc_path = os.path.join(output_dir, 'roc_curve.png')
     plot_roc_curve(metrics['labels'], metrics['probabilities'], roc_path)
 
+    # Plot attention analysis
+    attention_path = os.path.join(output_dir, 'attention_analysis.png')
+    plot_attention_analysis(
+        metrics['attentions'],
+        metrics['labels'],
+        metrics['predictions'],
+        attention_path
+    )
+
     # Save predictions to CSV
     predictions_path = os.path.join(output_dir, 'predictions.csv')
     with open(predictions_path, 'w') as f:
@@ -176,6 +235,7 @@ def save_results(metrics, output_dir):
             correct = "Yes" if label == pred else "No"
             f.write(f"{i},{label},{pred},{prob:.4f},{correct}\n")
     print(f"Predictions saved to {predictions_path}")
+
 
 def main(args):
     """Main prediction function"""
