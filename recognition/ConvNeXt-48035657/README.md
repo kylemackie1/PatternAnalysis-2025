@@ -110,7 +110,9 @@ python dataset.py --data_dir /path/to/AD_NC
 
 ```
 
-## Train Alzheimer's Disease Classifier
+## Usage
+
+### Train Alzheimer's Disease Classifier
 
 In order to train the model with the same parameters used in testing, run the following:
 
@@ -130,7 +132,7 @@ python train.py \
 
 This will save the best model and other performance metrics to `checkpoints/run_XXXXXXXX_XXXXXX`
 
-## Predict Using Trained Model
+### Predict Using Trained Model
 
 In order to perform prediction using the saved model, run the following:
 
@@ -139,3 +141,14 @@ python predict.py \
     --model_path checkpoints/run_XXXXXXXX_XXXXXX/best_model.pth \
     --data_dir /path/to/AD_NC \
 ```
+
+## Analysis of Performance
+
+To evaluate and visualise model performance we will plot the following figures:
+
+    1. Accuracy Plot - visualise the training and validation accuracies at each epoch of the training process
+    2. Confusion Matrix - visualisation of proportion of correct and incorrect classifications
+    3. ROC Curve - plot of true positive against false positive rate
+    4. Attention Weight Plots - evaluation of which slices appear to be most informative and discriminative for classfying AD vs NC
+
+These figures can be seen below:
