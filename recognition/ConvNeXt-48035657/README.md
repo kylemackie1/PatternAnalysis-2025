@@ -10,13 +10,23 @@ We will explore the use of ConvNeXt, an adaptation of simpler convolutional arch
 
 The ConvNeXt architecture uses a selection of convolution, normalisation, and GELU activation layers. The key feature that is typically associated with Transformer architecture is the use of an inverted bottleneck, where a 1x1 convolution layer is used to produce a greater number of output dimensions than input dimensions. This model also makes use of Drop Paths, a concept that drops entire samples from the path to reduce overfitting. If samples are not dropped, they are also passed through blocks as residual connections. Below is a diagram of the structure of a ConvNeXt block:
 
-![](images/ConvNeXtBlock.png)
+![](images/ConvNeXtBlock.png "Single ConvNeXt block")
+
+The implemented model is heavily inspired by the ConvNeXt-T (tiny) model discussed in "A ConvNet for the 2020s". This version of the model has 4 layers with 96, 192, 384 and 768 channels respectively. Similarly, each layer consists of 3, 3, 9 and 3 blocks in that order.
 
 ## Dataset
 
 ### Data Source
 
 We will use an MRI dataset available from the Alzheimer's Disease Neuroimaging Initiative (ADNI). This dataset (available on rangpur at `/home/groups/comp3710/ADNI`) has already been split into training and testing sets of 21520 and 9000 image slices respectively. Each patient's MRI scan consists of 20 image slices. If we group these together, the training set contains 1076 patients, and the testing set contains 450. These sets consist of 556 NC and 520 AD images for the training set, and 227 NC and 223 AD images for the testing set. In order to prevent data leakage and improve model performance, slices will be grouped based on the patient ID (assumed to be the first number within the file name). Once these are grouped by patient ID, the training set is split into 914 patients for training, and 162 for model validation and to evaluate learning throughout the training process. The decision to split based on patient ID was made to prevent data leakage between the training and validation sets.
+
+### Example Images
+
+Below are two example images from the dataset. The first image represents a single slice from an MRI of a patient with Alzheimer's Disease, while the second represents a slice from a Normal Control patient.
+
+![](images/391572_89.jpeg "Alzheimer's Disease Example")
+
+![](images/1236679_99.jpeg "Normal Control Example")
 
 ### Data Augmentation
 
