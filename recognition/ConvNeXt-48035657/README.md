@@ -26,7 +26,7 @@ We will use an MRI dataset available from the Alzheimer's Disease Neuroimaging I
 
 ### Installation
 
-### Step 1: Create Conda Environment
+#### Step 1: Create Conda Environment
 
 ```bash
 
@@ -36,7 +36,7 @@ conda activate torch
 
 ```
 
-### Step 2: Install PyTorch
+#### Step 2: Install PyTorch
 
 ```bash
 
@@ -48,6 +48,6 @@ conda install pytorch torchvision pytorch-cuda=11.8 -c pytorch -c nvidia
 
 ```bash
 
-pip install numpy pillow scipy scikit-learn matplotlib seaborn tqdm
+conda install numpy pillow scipy scikit-learn matplotlib seaborn tqdm
 
 ```
