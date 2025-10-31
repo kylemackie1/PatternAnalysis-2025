@@ -1,4 +1,4 @@
-# Classifying Alzheimer's using ConvNeXt
+# Classifying Alzheimer's Disease using ConvNeXt
 
 ## Introduction
 
@@ -74,6 +74,8 @@ Your file structure should be laid out as follows:
                 └── ...
 ```
 
+Note: On the Rangpur cluster the dataset can be found at `/home/groups/comp3710/ADNI/AD_NC`
+
 ### Test Setup
 
 #### Step 1: Test Model Architecture
@@ -90,4 +92,34 @@ python modules.py
 
 python dataset.py --data_dir /path/to/AD_NC
 
+```
+
+## Train Alzheimer's Disease Classifier
+
+In order to train the model with the same parameters used in testing, run the following:
+
+```bash
+
+python train.py \
+    --data_dir /path/to/AD_NC \
+    --batch_size 10 \
+    --epochs 100 \
+    --lr 1e-4 \
+    --scheduler cosine \
+    --patience 20 \
+    --dropout 0.5 \
+    --weight_decay 1e-5
+
+```
+
+This will save the best model and other performance metrics to `checkpoints/run_XXXXXXXX_XXXXXX`
+
+## Predict Using Trained Model
+
+In order to perform prediction using the saved model, run the following:
+
+```bash
+python predict.py \
+    --model_path checkpoints/run_XXXXXXXX_XXXXXX/best_model.pth \
+    --data_dir /path/to/AD_NC \
 ```
