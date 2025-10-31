@@ -51,3 +51,43 @@ conda install pytorch torchvision pytorch-cuda=11.8 -c pytorch -c nvidia
 conda install numpy pillow scipy scikit-learn matplotlib seaborn tqdm
 
 ```
+
+### File Structure
+
+Your file structure should be laid out as follows:
+
+```bash
+    data_dir/
+        ├── train/
+        │   ├── AD/
+        │   │   ├── scan1.jpg
+        │   │   └── ...
+        │   └── NC/
+        │       ├── scan1.jpg
+        │       └── ...
+        └── test/
+            ├── AD/
+            │   ├── scan1.jpg
+            │   └── ...
+            └── NCg
+                ├── scan1.jpg
+                └── ...
+```
+
+### Test Setup
+
+#### Step 1: Test Model Architecture
+
+```bash
+
+python modules.py
+
+```
+
+#### Step 2: Test Data Loader
+
+```bash
+
+python dataset.py --data_dir /path/to/AD_NC
+
+```
