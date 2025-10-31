@@ -197,3 +197,47 @@ def main(args):
     save_results(metrics, output_dir)
 
     print(f"\n✓ All results saved to {output_dir}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description='Predict Alzheimer\'s Disease using trained model'
+    )
+
+    # Required arguments
+    parser.add_argument('--model_path', type=str, required=True,
+                       help='Path to saved model checkpoint (.pth file)')
+    parser.add_argument('--data_dir', type=str, required=True,
+                       help='Path to data directory')
+
+    # Model parameters
+    parser.add_argument('--num_slices', type=int, default=15,
+                       help='Number of slices per patient')
+    parser.add_argument('--dropout', type=float, default=0.4,
+                       help='Dropout rate (should match training)')
+
+    # Data parameters
+    parser.add_argument('--batch_size', type=int, default=8,
+                       help='Batch size for prediction')
+    parser.add_argument('--img_size', type=int, default=224,
+                       help='Image size')
+    parser.add_argument('--num_workers', type=int, default=4,
+                       help='Number of data loading workers')
+
+    # Output parameters
+    parser.add_argument('--output_dir', type=str, default=None,
+                       help='Directory to save results (default: model_dir/predictions)')
+    parser.add_argument('--cpu', action='store_true',
+                       help='Use CPU even if GPU is available')
+
+    args = parser.parse_args()
+
+    # Validate model path
+    if not os.path.exists(args.model_path):
+        raise FileNotFoundError(f"Model file not found: {args.model_path}")
+
+    # Validate data directory
+    if not os.path.exists(args.data_dir):
+        raise FileNotFoundError(f"Data directory not found: {args.data_dir}")
+
+    # Run prediction
+    main(args)
