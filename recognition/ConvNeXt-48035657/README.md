@@ -146,10 +146,10 @@ python predict.py \
 
 To evaluate and visualise model performance we will plot the following figures:
 
-    1. Accuracy Plot - visualise the training and validation accuracies at each epoch of the training process
-    2. Confusion Matrix - visualisation of proportion of correct and incorrect classifications
-    3. ROC Curve - plot of true positive against false positive rate
-    4. Attention Weight Plots - evaluation of which slices appear to be most informative and discriminative for classfying AD vs NC
+1. Accuracy Plot - visualise the training and validation accuracies at each epoch of the training process
+2. Confusion Matrix - visualisation of proportion of correct and incorrect classifications
+3. ROC Curve - plot of true positive against false positive rate
+4. Attention Weight Plots - evaluation of which slices appear to be most informative and discriminative for classfying AD vs NC
 
 These figures can be seen below:
 
