@@ -14,7 +14,13 @@ The ConvNeXt architecture uses a selection of convolution, normalisation, and GE
 
 ## Dataset
 
-We will use an MRI dataset available from the Alzheimer's Disease Neuroimaging Initiative (ADNI). This dataset (available on rangpur at `/home/groups/comp3710/ADNI`) has already been split into training and testing sets of 21520 and 9000 image slices respectively. Each patient's MRI scan consists of 20 image slices. If we group these together, the training set contains 1076 patients, and the testing set contains 450. These sets consist of 556 NC and 520 AD images for the training set, and 227 NC and 223 AD images for the testing set. In order to prevent data leakage and improve model performance, slices will be grouped based on the patient ID (assumed to be the first number within the file name). Once these are grouped by patient ID, the training set is split into 914 patients for training, and 162 for model validation.
+### Data Source
+
+We will use an MRI dataset available from the Alzheimer's Disease Neuroimaging Initiative (ADNI). This dataset (available on rangpur at `/home/groups/comp3710/ADNI`) has already been split into training and testing sets of 21520 and 9000 image slices respectively. Each patient's MRI scan consists of 20 image slices. If we group these together, the training set contains 1076 patients, and the testing set contains 450. These sets consist of 556 NC and 520 AD images for the training set, and 227 NC and 223 AD images for the testing set. In order to prevent data leakage and improve model performance, slices will be grouped based on the patient ID (assumed to be the first number within the file name). Once these are grouped by patient ID, the training set is split into 914 patients for training, and 162 for model validation and to evaluate learning throughout the training process. The decision to split based on patient ID was made to prevent data leakage between the training and validation sets.
+
+### Data Augmentation
+
+In order to improve generalisation of the model to the test dataset, some augmentation of the dataset takes place in `dataset.py`. By default, image rotations of up to 15 degrees may occur. Images may also be flipped horizontally. In order to address difference in image intensity, brightness and contrast are randomly modified by 0.2. Finally gaussian noise is added to images with a standard deviation of 0.02.
 
 ## Setup Instructions
 
