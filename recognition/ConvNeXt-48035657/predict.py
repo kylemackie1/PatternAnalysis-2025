@@ -20,6 +20,22 @@ from sklearn.metrics import (
 from modules import create_model
 from dataset import create_dataloaders
 
+
+def plot_confusion_matrix(cm, save_path, class_names=['Normal', 'AD']):
+    """Plot and save confusion matrix"""
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=class_names,
+                yticklabels=class_names,
+                cbar_kws={'label': 'Count'})
+    plt.xlabel('Predicted Label', fontsize=12, fontweight='bold')
+    plt.ylabel('True Label', fontsize=12, fontweight='bold')
+    plt.title('Confusion Matrix', fontsize=14, fontweight='bold')
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    print(f"Confusion matrix saved to {save_path}")
+    plt.close()
+
 def evaluate_model(model, test_loader, device):
     """
     Evaluate model on test set
@@ -121,6 +137,10 @@ def save_results(metrics, output_dir):
         json.dump(metrics_to_save, f, indent=4)
     print(f"\nMetrics saved to {metrics_path}")
 
+    # Plot confusion matrix
+    cm_path = os.path.join(output_dir, 'confusion_matrix.png')
+    plot_confusion_matrix(metrics['confusion_matrix'], cm_path)
+
     # Save predictions to CSV
     predictions_path = os.path.join(output_dir, 'predictions.csv')
     with open(predictions_path, 'w') as f:
@@ -197,6 +217,7 @@ def main(args):
     save_results(metrics, output_dir)
 
     print(f"\n✓ All results saved to {output_dir}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
