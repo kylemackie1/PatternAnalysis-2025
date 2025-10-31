@@ -152,3 +152,11 @@ To evaluate and visualise model performance we will plot the following figures:
     4. Attention Weight Plots - evaluation of which slices appear to be most informative and discriminative for classfying AD vs NC
 
 These figures can be seen below:
+
+## References
+
+IA. (2025). What Is Alzheimer's Disease? Retrieved October 26, 2025, from National Institute on Aging: https://www.nia.nih.gov/health/alzheimers-and-dementia/what-alzheimers-disease
+
+Taylor, E. (2022). All you need to know about brain scans and dementia. Retrieved October 26, 2025, from Alzheimer's Research UK: https://www.alzheimersresearchuk.org/news/all-you-need-to-know-about-brain-scans-and-dementia/
+
+Zhuang Liu, H. M.-Y. (2022). A ConvNet for the 2020s. Conference on Computer Vision and Pattern Recognition (CVPR) (pp. 11976–11986). IEEE (Institute of Electrical and Electronics Engineers). Retrieved October 15, 2025
