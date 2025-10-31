@@ -133,3 +133,67 @@ def save_results(metrics, output_dir):
             correct = "Yes" if label == pred else "No"
             f.write(f"{i},{label},{pred},{prob:.4f},{correct}\n")
     print(f"Predictions saved to {predictions_path}")
+
+def main(args):
+    """Main prediction function"""
+    print("=" * 70)
+    print("ALZHEIMER'S DISEASE CLASSIFICATION - PREDICTION")
+    print("=" * 70)
+
+    # Set device
+    device = torch.device('cuda' if torch.cuda.is_available() and not args.cpu else 'cpu')
+    print(f"\nUsing device: {device}")
+
+    # Load model checkpoint
+    print(f"\nLoading model from {args.model_path}...")
+    checkpoint = torch.load(args.model_path, map_location=device)
+
+    # Create model
+    model = create_model(
+        num_classes=2,
+        dropout=args.dropout,
+        num_slices=args.num_slices
+    )
+
+    # Load weights
+    if 'model_state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['model_state_dict'])
+        print(f"Model loaded successfully (epoch {checkpoint.get('epoch', 'unknown')})")
+        print(f"  Best validation accuracy: {checkpoint.get('val_acc', 'unknown')}")
+    else:
+        model.load_state_dict(checkpoint)
+        print("Model loaded successfully")
+
+    model = model.to(device)
+    model.eval()
+
+    print(f"Total parameters: {sum(p.numel() for p in model.parameters()):,}")
+
+    # Load test data
+    print("\nLoading test data...")
+    _, _, test_loader = create_dataloaders(
+        data_dir=args.data_dir,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        img_size=(args.img_size, args.img_size),
+        augment=False,
+        use_validation=False,  # We only need test set
+        num_slices=args.num_slices
+    )
+
+    print(f"Test set: {len(test_loader.dataset)} patients")
+
+    # Evaluate
+    metrics = evaluate_model(model, test_loader, device)
+
+    # Print results
+    print_results(metrics)
+
+    # Save results
+    output_dir = args.output_dir or os.path.join(
+        os.path.dirname(args.model_path),
+        'predictions'
+    )
+    save_results(metrics, output_dir)
+
+    print(f"\n✓ All results saved to {output_dir}")
