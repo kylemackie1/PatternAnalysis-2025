@@ -36,6 +36,25 @@ def plot_confusion_matrix(cm, save_path, class_names=['Normal', 'AD']):
     print(f"Confusion matrix saved to {save_path}")
     plt.close()
 
+
+def plot_roc_curve(labels, probs, save_path):
+    """Plot and save ROC curve"""
+    fpr, tpr, thresholds = roc_curve(labels, probs)
+    auc = roc_auc_score(labels, probs)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr, tpr, linewidth=2, label=f'ROC Curve (AUC = {auc:.4f})')
+    plt.plot([0, 1], [0, 1], 'k--', linewidth=1, label='Random Classifier')
+    plt.xlabel('False Positive Rate', fontsize=12, fontweight='bold')
+    plt.ylabel('True Positive Rate', fontsize=12, fontweight='bold')
+    plt.title('ROC Curve', fontsize=14, fontweight='bold')
+    plt.legend(fontsize=11)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    print(f"ROC curve saved to {save_path}")
+    plt.close()
+
 def evaluate_model(model, test_loader, device):
     """
     Evaluate model on test set
@@ -140,6 +159,10 @@ def save_results(metrics, output_dir):
     # Plot confusion matrix
     cm_path = os.path.join(output_dir, 'confusion_matrix.png')
     plot_confusion_matrix(metrics['confusion_matrix'], cm_path)
+
+    # Plot ROC curve
+    roc_path = os.path.join(output_dir, 'roc_curve.png')
+    plot_roc_curve(metrics['labels'], metrics['probabilities'], roc_path)
 
     # Save predictions to CSV
     predictions_path = os.path.join(output_dir, 'predictions.csv')
