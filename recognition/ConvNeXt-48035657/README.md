@@ -15,3 +15,39 @@ The ConvNeXt architecture uses a selection of convolution, normalisation, and GE
 ## Dataset
 
 We will use an MRI dataset available from the Alzheimer's Disease Neuroimaging Initiative (ADNI). This dataset (available on rangpur at `/home/groups/comp3710/ADNI`) has already been split into training and testing sets of 21520 and 9000 image slices respectively. Each patient's MRI scan consists of 20 image slices. If we group these together, the training set contains 1076 patients, and the testing set contains 450. These sets consist of 556 NC and 520 AD images for the training set, and 227 NC and 223 AD images for the testing set. In order to prevent data leakage and improve model performance, slices will be grouped based on the patient ID (assumed to be the first number within the file name). Once these are grouped by patient ID, the training set is split into 914 patients for training, and 162 for model validation.
+
+## Setup Instructions
+
+### Prerequisites
+
+- Python 3.13 or greater
+- CUDA-capable GPU
+- Conda installation
+
+### Installation
+
+### Step 1: Create Conda Environment
+
+```bash
+
+conda create -n torch python=3.13
+
+conda activate torch
+
+```
+
+### Step 2: Install PyTorch
+
+```bash
+
+conda install pytorch torchvision pytorch-cuda=11.8 -c pytorch -c nvidia
+
+```
+
+#### Step 3: Install Other Dependencies
+
+```bash
+
+pip install numpy pillow scipy scikit-learn matplotlib seaborn tqdm
+
+```
